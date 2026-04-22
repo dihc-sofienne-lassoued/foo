@@ -1,0 +1,16 @@
+numpy>=1.23,<2.0
+pyheif>=0.8.0
+requests>=2.31.0
+
+git+https://github.com/openai/CLIP.git
+
+matplotlib>=3.7
+torch>=2.0
+torchvision>=0.15
+
+streamlit>=1.25
+Pillow>=9.5
+opencv-python>=4.8
+
+pyyaml
+jupyterlab
