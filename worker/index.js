@@ -1,104 +1,85 @@
 const Queue = require("bull");
-const Redis = require("ioredis");
 const axios = require("axios");
 const FormData = require("form-data");
 const fs = require("fs");
 
-// 🔧 Redis connection (IMPORTANT: separate connections)
-const redisConfig = {
-  host: process.env.REDIS_HOST || "redis",
-  port: process.env.REDIS_PORT || 6379,
-  maxRetriesPerRequest: null, // 🔥 FIX subscriber error
-};
-
-// Create queue
 const videoQueue = new Queue("video-processing", {
-  redis: redisConfig,
+  redis: {
+    host: process.env.REDIS_HOST || "redis",
+    port: process.env.REDIS_PORT || 6379,
+  },
 });
 
 console.log("👷 Worker started...");
-console.log("Worker => QUEUE NAME: video-processing");
 
-// ----------------------------------
-// 🧠 Wait for Python service
-// ----------------------------------
-async function waitForPython() {
-  for (let i = 0; i < 20; i++) {
-    try {
-      await axios.get("http://video-python:8000/");
-      console.log("✅ Python service is ready");
-      return;
-    } catch (err) {
-      console.log("⏳ Waiting for Python...");
-      await new Promise((r) => setTimeout(r, 1000));
-    }
-  }
+videoQueue.process(async (job) => {
+  console.log("🔥 Processing job:", job.id);
 
-  throw new Error("❌ Python service not available");
-}
-
-// ----------------------------------
-// 🚀 Send video to Python service
-// ----------------------------------
-async function sendToPython(filePath) {
   const form = new FormData();
-  form.append("file", fs.createReadStream(filePath));
+  form.append("file", fs.createReadStream(job.data.file));
 
-  for (let i = 0; i < 5; i++) {
-    try {
-      console.log(`📡 Sending to Python (attempt ${i + 1})`);
+  try {
+    const response = await axios.post(
+      "http://video-python:8000/process",
+      form,
+      {
+        headers: form.getHeaders(),
+        responseType: "stream",
+      },
+    );
 
-      const response = await axios.post(
-        "http://video-python:8000/process",
-        form,
-        {
-          headers: form.getHeaders(),
-          maxContentLength: Infinity,
-          maxBodyLength: Infinity,
-          timeout: 0,
-        },
-      );
+    return new Promise((resolve, reject) => {
+      let result = "";
+      let buffer = ""; // ✅ for safe streaming parsing
 
-      return response.data;
-    } catch (err) {
-      console.log("❌ Python not ready / failed, retrying...");
-      await new Promise((r) => setTimeout(r, 2000));
-    }
-  }
+      response.data.on("data", (chunk) => {
+        const text = chunk.toString();
+        console.log("TEXT: " + text);
+        result += text;
+        buffer += text;
 
-  throw new Error("❌ Failed to process video after retries");
-}
+        // ✅ extract ALL progress values (not just one)
+        const matches = [...buffer.matchAll(/PROGRESS:(\d+)/g)];
 
-// ----------------------------------
-// 🔥 Main worker logic
-// ----------------------------------
-(async () => {
-  // Wait until Python is ready BEFORE processing jobs
-  await waitForPython();
+        for (const m of matches) {
+          const progress = parseInt(m[1], 10);
+          console.log("📊 Progress:", progress);
+          job.progress(progress);
+        }
 
-  videoQueue.process(async (job) => {
-    console.log(`🔥 Processing job: ${job.id}`);
-    console.log("📂 File:", job.data.file);
-
-    try {
-      // Optional: progress start
-      await job.progress(10);
-
-      const result = await sendToPython(job.data.file, (p) => {
-        // 👇 forward progress from Python
-        job.progress(p);
+        // ✅ keep only last part to avoid broken chunks
+        buffer = buffer.slice(-50);
       });
 
-      await job.progress(90);
+      response.data.on("end", () => {
+        try {
+          // ✅ Extract ONLY the JSON part (ignore PROGRESS lines)
+          const jsonMatch = result.match(/\{.*\}/s);
 
-      console.log("✅ Processing complete:", result);
+          if (!jsonMatch) {
+            throw new Error("No JSON found in response:\n" + result);
+          }
 
-      await job.progress(100);
+          const parsed = JSON.parse(jsonMatch[0]);
 
-      return result.output;
-    } catch (err) {
-      console.error("❌ Failed:", err.message);
-      throw err;
-    }
-  });
-})();
+          // ✅ ensure final progress
+          job.progress(100);
+
+          console.log("✅ Done:", parsed.output);
+          resolve(parsed.output);
+        } catch (e) {
+          console.error("❌ Parse error:\n", result);
+          reject(e);
+        }
+      });
+
+      response.data.on("error", (err) => {
+        console.error("❌ Stream error:", err);
+        reject(err);
+      });
+    });
+  } catch (err) {
+    console.error("❌ Failed:", err.message);
+    throw err;
+  }
+});
