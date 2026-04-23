@@ -73,6 +73,7 @@ def process_video(video_path, model, output_path="output.mp4"):
     cmd = [
         "ffmpeg",
         "-y",
+        "-loglevel", "error",   # 👈 KEY LINE
         "-i", temp_raw,
         "-vcodec", "libx264",
         "-pix_fmt", "yuv420p",

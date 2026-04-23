@@ -92,7 +92,7 @@ async def process(file: UploadFile = File(...)):
         # ✅ Convert to MP4
         final_path = output_path
         os.system(
-            f"ffmpeg -y -i {temp_raw} -vcodec libx264 -pix_fmt yuv420p {final_path}"
+            f"ffmpeg -y -loglevel error -i {temp_raw} -vcodec libx264 -pix_fmt yuv420p {final_path}"
         )
 
         os.remove(temp_raw)
