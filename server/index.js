@@ -11,6 +11,7 @@ const videoQueue = require("./shared/queue");
 
 const app = express();
 const upload = multer({ dest: "uploads/" });
+const KSUID = require("ksuid");
 
 /* =========================
    ✅ REST upload endpoint
@@ -23,14 +24,20 @@ app.post("/upload", upload.single("video"), async (req, res) => {
       return res.status(400).json({ error: "No file uploaded" });
     }
 
-    const job = await videoQueue.add({
-      file: req.file.path,
-    });
+    const id = (await KSUID.random()).string;
+
+    const job = await videoQueue.add(
+      {
+        file: req.file.path,
+      },
+      {
+        jobId: id,
+      },
+    );
 
     console.log("✅ Job added:", job.id);
 
     res.json({ jobId: job.id });
-
   } catch (err) {
     console.error("❌ Upload error:", err);
     res.status(500).json({ error: "Upload failed" });
@@ -72,7 +79,6 @@ const resolvers = {
           progress: progress ?? 0,
           outputUrl: state === "completed" ? job.returnvalue : null,
         };
-
       } catch (err) {
         console.error("❌ jobStatus error:", err);
         return null;
@@ -88,12 +94,7 @@ async function start() {
   const server = new ApolloServer({ typeDefs, resolvers });
   await server.start();
 
-  app.use(
-    "/graphql",
-    cors(),
-    bodyParser.json(),
-    expressMiddleware(server)
-  );
+  app.use("/graphql", cors(), bodyParser.json(), expressMiddleware(server));
 
   app.listen(4000, () => {
     console.log("🚀 Server running on http://localhost:4000");
