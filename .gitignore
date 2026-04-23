@@ -1,2 +1,8 @@
 .idea/
 .ipynb_checkpoints/*
+outputs
+uploads
+server/node_modules
+shared/node_modules
+worker/node_modules
+python/weights

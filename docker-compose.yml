@@ -1,16 +1,59 @@
-version: "3.9"
-
 services:
-  app:
-    build: .
-    container_name: violence-detection
+  # 🔴 Redis (queue backend)
+  redis:
+    image: redis:7
+    container_name: redis
     ports:
-      - "8765:8501"
+      - "6379:6379"
+    restart: unless-stopped
+
+  # 🟢 Node.js API (GraphQL + upload)
+  api:
+    build: ./server
+    container_name: video-api
+    ports:
+      - "4000:4000"
     volumes:
-      - .:/app
+      - ./server:/app
+      - ./uploads:/app/uploads
+      - ./outputs:/app/outputs
+      - ./shared:/app/shared
+    depends_on:
+      - redis
+    environment:
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+    restart: unless-stopped
+
+  # ⚙️ Worker (process queue jobs)
+  worker:
+    build: ./worker
+    container_name: video-worker
+    volumes:
+      - ./uploads:/app/uploads
+      - ./outputs:/app/outputs
+      - ./python:/app/python
+      - ./shared:/app/shared
+    depends_on:
+      - redis
+      - python
+    environment:
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+    restart: unless-stopped
+
+  # 🧠 Python processing service (optional but recommended)
+  python:
+    build: ./python
+    container_name: video-python
+    ports:
+      - "8001:8000"
+    volumes:
+      - ./uploads:/app/uploads
+      - ./outputs:/app/outputs
+      - ./python/weights:/app/weights
     environment:
       - PYTHONUNBUFFERED=1
       - OMP_NUM_THREADS=8
       - MKL_NUM_THREADS=8
     restart: unless-stopped
-    
