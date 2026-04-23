@@ -24,14 +24,13 @@ app.post("/upload", upload.single("video"), async (req, res) => {
       return res.status(400).json({ error: "No file uploaded" });
     }
 
-    const id = (await KSUID.random()).string;
-
+    const jobId = (await KSUID.random()).string;
     const job = await videoQueue.add(
       {
         file: req.file.path,
       },
       {
-        jobId: id,
+        jobId,
       },
     );
 
