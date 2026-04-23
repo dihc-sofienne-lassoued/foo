@@ -41,15 +41,17 @@ def process_video(video_path, model, output_path="output.mp4"):
             result = model.predict(image=rgb)
             label = result["label"]
 
-        cv2.putText(
-            frame,
-            label,
-            (20, 40),
-            cv2.FONT_HERSHEY_SIMPLEX,
-            1,
-            (0, 255, 0),
-            2,
-        )
+        print("APP")
+        print(label)
+        print("APP")
+        if "fire" in label or "violence" in label or "fight" in "label" or "crash" in "label":
+            cv2.putText(frame, label, (20, 40),
+                        cv2.FONT_HERSHEY_SIMPLEX, 1,
+                        (0, 0, 255), 2)
+        else:
+            cv2.putText(frame, label, (20, 40),
+                        cv2.FONT_HERSHEY_SIMPLEX, 1,
+                        (0, 255, 0), 2)
 
         out.write(frame)
 

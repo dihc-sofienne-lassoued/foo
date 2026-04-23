@@ -10,6 +10,7 @@ const typeDefs = require("./schema");
 const videoQueue = require("./shared/queue");
 
 const app = express();
+app.use(cors());
 const upload = multer({ dest: "uploads/" });
 const KSUID = require("ksuid");
 

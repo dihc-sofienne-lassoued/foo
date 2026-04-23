@@ -71,11 +71,20 @@ async def process(file: UploadFile = File(...)):
             with torch.no_grad():
                 result = model.predict(image=rgb)
                 label = result["label"]
-
-            cv2.putText(frame, label, (20, 40),
-                        cv2.FONT_HERSHEY_SIMPLEX, 1,
-                        (0, 255, 0), 2)
-
+            print("MAIN")
+            print(label)
+            print("MAIN")
+            if "fire" in label or "violence" in label or "fight" in "label" or "crash" in "label":
+                cv2.putText(frame, label, (20, 40),
+                            cv2.FONT_HERSHEY_SIMPLEX, 1,
+                            (0, 0, 255), 2)
+            elif "Unknown" in label: 
+                pass    
+            else:
+                cv2.putText(frame, label, (20, 40),
+                            cv2.FONT_HERSHEY_SIMPLEX, 1,
+                            (0, 255, 0), 2)
+                        
             out.write(frame)
 
             # ✅ REAL progress
